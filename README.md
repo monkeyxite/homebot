@@ -37,7 +37,13 @@ $ scrapy crawl \
          --output=hemnet.csv \
          hemnet
 ```
-
+```
+scrapy crawl \
+         -a url="https://www.hemnet.se/salda/bostader?location_ids%5B%5D=17744" \
+         --output-format=json \
+         --output=hemnet-sold.json \
+         hemnet-sold
+```
 Fetch all sold residences from Hemnet with at least 10 rooms to a JSON file.
 ```
 $ scrapy crawl \

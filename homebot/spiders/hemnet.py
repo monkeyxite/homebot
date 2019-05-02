@@ -45,15 +45,20 @@ class HemnetSpider(Spider):
 
         item["url"] = response.url
 
-        s = "//script[@type='text/javascript']"
+        s = "//script"
+        from scrapy.shell import inspect_response
+        inspect_response(response, self)
+
         for script in response.xpath(s):
-            script = script.xpath("text()").extract_first()
+            text = script.xpath("text()").extract_first()
             try:
-                attribs = re.search("properties = \[(.*)]\;", script).group(1)
+                pat = r""".*dataLayer = \[([.\W\w]{0,})\]\;"""
+                a = re.search(pat, text).group(1)
                 break
             except AttributeError:
                 pass
-        attribs = json.loads(attribs)
+        x= "{" + a.split("},{")[1]
+        attribs = json.loads(x).get("sold_property")
 
         item["address"] = attribs.get("address", "")
         item["region"] = attribs.get("location_name", "")
