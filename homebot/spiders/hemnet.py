@@ -25,13 +25,14 @@ import json
 class HemnetSpider(Spider):
     name = "hemnet"
     allowed_domains = ["www.hemnet.se"]
+    download_delay = 10.5
 
     def start_requests(self):
         url = getattr(self, "url", "https://www.hemnet.se/bostader")
         yield Request(url)
 
     def parse(self, response):
-        ads = response.xpath("//ul[@id='search-results']/li/div/a/@href")
+        ads = response.xpath("//ul[@class='normal-results']/li/div/a/@href")
         for url in ads.extract():
             yield Request(response.urljoin(url), self.parse_advertisement)
 
@@ -42,52 +43,27 @@ class HemnetSpider(Spider):
 
     def parse_advertisement(self, response):
         item = HemnetItem()
-
         item["url"] = response.url
-
         s = "//script"
-        from scrapy.shell import inspect_response
-        inspect_response(response, self)
 
         for script in response.xpath(s):
             text = script.xpath("text()").extract_first()
             try:
-                pat = r""".*dataLayer = \[([.\W\w]{0,})\]\;"""
-                a = re.search(pat, text).group(1)
-                break
+                if text:
+                    pat = r""".*dataLayer = \[([.\W\w]{0,})\]\;"""
+                    a = re.search(pat, text).group(1)
+                    break
             except AttributeError:
                 pass
         x= "{" + a.split("},{")[1]
-        attribs = json.loads(x).get("sold_property")
+        attribs = json.loads(x).get("property")
+        from flatten_json import flatten
+        #  from scrapy.shell import inspect_response
+        #  inspect_response(response, self)
 
-        item["address"] = attribs.get("address", "")
-        item["region"] = attribs.get("location_name", "")
-
-        coordinate = attribs.get("coordinate", (0.0, 0.0))
-        item["latitude"] = coordinate[0]
-        item["longitude"] = coordinate[1]
-
-        item["object_type"] = attribs.get("type", "")
-        item["construction_year"] = _get_attrib_from_html(response, "Byggår")
-
-        item["rooms"] = attribs.get("rooms", 0.0)
-
-        item["living_area"] = attribs.get("living_space", 0.0)
-        item["lot_area"] = attribs.get("land_area", 0.0)
-        item["gross_area"] = _get_attrib_from_html(response, "Biarea")
-
-        item["rent"] = attribs.get("fee", 0.0)
-        item["annual_fee"] = _get_attrib_from_html(response, "Driftkostnad")
-
-        item["list_price"] = attribs.get("price", 0)
-
-        s = "//div[@id='item-info']/div/a/@title"
-        item["broker_firm"] = response.xpath(s).extract_first()
-
+        item=flatten(attribs)
         item["last_updated"] = datetime.now()
-
         _normalize_item(item)
-
         yield item
 
 class HemnetSoldSpider(Spider):
@@ -109,69 +85,94 @@ class HemnetSoldSpider(Spider):
             yield Request(response.urljoin(next_page))
 
     def parse_advertisement(self, response):
-        item = HemnetSoldItem()
-
+        item = HemnetItem()
         item["url"] = response.url
+        s = "//script"
 
-        s = "normalize-space(//p[@class='sold-property__metadata']/text()[2])"
-        metadata = response.xpath(s).extract_first()
-        metadata = re.split(" - ", metadata)
-        item["object_type"] = metadata[0]
-        item["region"] = metadata[1]
+        for script in response.xpath(s):
+            text = script.xpath("text()").extract_first()
+            try:
+                if text:
+                    pat = r""".*dataLayer = \[([.\W\w]{0,})\]\;"""
+                    a = re.search(pat, text).group(1)
+                    break
+            except AttributeError:
+                pass
+        x= "{" + a.split("},{")[1]
+        attribs = json.loads(x).get("sold_property")
+        from flatten_json import flatten
+ #       from scrapy.shell import inspect_response
+ #       inspect_response(response, self)
 
-        s = "//p[@class='sold-property__metadata']/time/@datetime"
-        item["sold_date"] = response.xpath(s).extract_first()
-
-        item["rent"]  = _get_attrib_from_html(response, "Avgift/månad", True)
-        item["annual_fee"] = _get_attrib_from_html(response, "Driftskostnad",
-                                                    True)
-
-        item["construction_year"] = _get_attrib_from_html(response, "Byggår",
-                                                          True)
-
-        item["housing_association"] = _get_attrib_from_html(response,
-                                                            "Förening", True)
-
-        s = "//div[@class='broker__details']/p[2]//text()[1]"
-        try:
-            firm = response.xpath(s).extract()[0].strip()
-            if firm == "":
-                firm = response.xpath(s).extract()[1].strip()
-        except IndexError:
-            firm = ""
-        item["broker_firm"] = firm
-
-        s = "//script[@type='text/javascript'][3]/text()"
-        script = response.xpath(s).extract_first()
-        attribs = re.search("var properties = \[(.*)]\;", script).group(1)
-        try:
-            attribs = json.loads(attribs)
-
-            item["address"] = attribs["address"]
-            item["latitude"] = attribs["coordinate"][0]
-            item["longitude"] = attribs["coordinate"][1]
-
-            item["object_type"] = attribs["type"]
-
-            item["rooms"] = attribs["rooms"]
-
-            item["living_area"] = attribs["living_space"]
-            item["lot_area"] = attribs["land_area"]
-            item["gross_area"] = attribs["supplemental_area"]
-
-            item["list_price"] = attribs["asked_price"]
-            item["sold_price"] = attribs["price"]
-        except json.JSONDecodeError:
-            # Some adds doesn't have the properties in JavaScript, extract as
-            # much as possible from HTML instead
-            self.parse_attribs_from_html(response, item)
-
+        item=flatten(attribs)
         item["last_updated"] = datetime.now()
-
         _normalize_item(item)
-
         yield item
 
+    #  def parse_advertisement(self, response):
+        #  item = HemnetSoldItem()
+#
+        #  item["url"] = response.url
+#
+        #  s = "normalize-space(//p[@class='sold-property__metadata']/text()[2])"
+        #  metadata = response.xpath(s).extract_first()
+        #  metadata = re.split(" - ", metadata)
+        #  item["object_type"] = metadata[0]
+        #  item["region"] = metadata[1]
+#
+        #  s = "//p[@class='sold-property__metadata']/time/@datetime"
+        #  item["sold_date"] = response.xpath(s).extract_first()
+#
+        #  item["rent"]  = _get_attrib_from_html(response, "Avgift/månad", True)
+        #  item["annual_fee"] = _get_attrib_from_html(response, "Driftskostnad",
+                                                    #  True)
+#
+        #  item["construction_year"] = _get_attrib_from_html(response, "Byggår",
+                                                          #  True)
+#
+        #  item["housing_association"] = _get_attrib_from_html(response,
+                                                            #  "Förening", True)
+#
+        #  s = "//div[@class='broker__details']/p[2]//text()[1]"
+        #  try:
+            #  firm = response.xpath(s).extract()[0].strip()
+            #  if firm == "":
+                #  firm = response.xpath(s).extract()[1].strip()
+        #  except IndexError:
+            #  firm = ""
+        #  item["broker_firm"] = firm
+#
+        #  s = "//script[@type='text/javascript'][3]/text()"
+        #  script = response.xpath(s).extract_first()
+        #  attribs = re.search("var properties = \[(.*)]\;", script).group(1)
+        #  try:
+            #  attribs = json.loads(attribs)
+#
+            #  item["address"] = attribs["address"]
+            #  item["latitude"] = attribs["coordinate"][0]
+            #  item["longitude"] = attribs["coordinate"][1]
+#
+            #  item["object_type"] = attribs["type"]
+#
+            #  item["rooms"] = attribs["rooms"]
+#
+            #  item["living_area"] = attribs["living_space"]
+            #  item["lot_area"] = attribs["land_area"]
+            #  item["gross_area"] = attribs["supplemental_area"]
+#
+            #  item["list_price"] = attribs["asked_price"]
+            #  item["sold_price"] = attribs["price"]
+        #  except json.JSONDecodeError:
+            #  Some adds doesn't have the properties in JavaScript, extract as
+            #  much as possible from HTML instead
+            #  self.parse_attribs_from_html(response, item)
+#
+        #  item["last_updated"] = datetime.now()
+#
+        #  _normalize_item(item)
+#
+        #  yield item
+#
     def parse_attribs_from_html(self, response, item):
         s = "normalize-space(//h1[@class='sold-property__address']/text()[2])"
         item["address"] = response.xpath(s).extract_first()
