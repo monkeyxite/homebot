@@ -69,6 +69,7 @@ class HemnetSpider(Spider):
 class HemnetSoldSpider(Spider):
     name = "hemnet-sold"
     allowed_domains = ["www.hemnet.se"]
+    download_delay = 20.5
 
     def start_requests(self):
         url = getattr(self, "url", "https://www.hemnet.se/salda/bostader")

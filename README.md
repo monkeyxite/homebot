@@ -39,6 +39,14 @@ scrapy crawl \
          hemnet
 ```
 #### Flat
+```
+scrapy crawl \
+         -a url="https://www.hemnet.se/bostader?location_ids%5B%5D=925970&location_ids%5B%5D=898740&item_types%5B%5D=bostadsratt" \
+         --output-format=csv \
+         --output=sthlm_flat.csv \
+         hemnet
+```
+
 
 #### Villa-sold
 ```
@@ -49,6 +57,13 @@ scrapy crawl \
          hemnet-sold
 ```
 #### Flat-sold
+```
+scrapy crawl \
+         -a url="https://www.hemnet.se/salda/bostader?item_types%5B%5D=villa&location_ids%5B%5D=17793&location_ids%5B%5D=898740&location_ids%5B%5D=473325" \
+         --output-format=csv \
+         --output=sthlm_flat_sold.csv \
+         hemnet-sold
+```
 Fetch all sold residences from Hemnet with at least 10 rooms to a JSON file.
 ```
 $ scrapy crawl \
